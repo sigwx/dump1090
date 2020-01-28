@@ -476,6 +476,29 @@ function end_load_history() {
         // And kick off one refresh immediately.
         fetchData();
 
+        // if asked, toggle featrues at start
+        let url = new URL(window.location.href);
+        let params = new URLSearchParams(url.search);
+        if(params.get('hideBanner')) {
+                hideBanner();
+        }
+        if(params.get('showBanner')) {
+                showBanner();
+        }
+        if(params.get('hideAltitude')) {
+                toggleAltitudeChart(true);
+        }
+        if(params.get('showTracks')) {
+                selectAllPlanes();
+        }
+        if(params.get('hideMap')) {
+                expandSidebar();
+        }
+        if(params.get('hideSidebar')) {
+                toggleSidebarVisibility();
+		// Since aspect ratio changes, call for a map reset to center it
+		resetMap();
+        }
 }
 
 // Make a LineString with 'points'-number points
@@ -1505,7 +1528,9 @@ function updateMapSize() {
 }
 
 function toggleSidebarVisibility(e) {
-    e.preventDefault();
+    if (e) {
+        e.preventDefault();
+    }
     $("#sidebar_container").toggle();
     $("#expand_sidebar_control").toggle();
     $("#toggle_sidebar_button").toggleClass("show_sidebar");
@@ -1514,7 +1539,9 @@ function toggleSidebarVisibility(e) {
 }
 
 function expandSidebar(e) {
-    e.preventDefault();
+    if (e) {
+        e.preventDefault();
+    }
     $("#map_container").hide()
     $("#toggle_sidebar_control").hide();
     $("#splitter").hide();
@@ -1887,4 +1914,17 @@ function updatePiAwareOrFlightFeeder() {
 		PageName = 'PiAware SkyAware';
 	}
 	refreshPageTitle();
+}
+
+// for a kiosk to show maximum data possible
+function hideBanner() {
+        document.getElementById("header").style.display = 'none'; 
+        document.getElementById("layout_container").style.height = '100%';
+}
+
+// put the banner back (not sure how we'd use this one)
+function showBanner() {
+        var h = document.getElementById("header");
+        document.getElementById("layout_container").style.height = '100% ' - h.style.height;
+        h.style.display = 'flex'; 
 }
