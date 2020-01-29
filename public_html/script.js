@@ -496,8 +496,8 @@ function end_load_history() {
         }
         if(params.get('hideSidebar')) {
                 toggleSidebarVisibility();
-		// Since aspect ratio changes, call for a map reset to center it
-		resetMap();
+                // Since aspect ratio changes, call for a map reset to center it
+                resetMap();
         }
 }
 
