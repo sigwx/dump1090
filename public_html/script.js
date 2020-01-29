@@ -476,9 +476,19 @@ function end_load_history() {
         // And kick off one refresh immediately.
         fetchData();
 
+        // update the display layout from any URL query strings
+        applyUrlQueryStrings();
+}
+
+// Function to apply any URL query value to the map before we start
+function applyUrlQueryStrings() {
         // if asked, toggle featrues at start
         let url = new URL(window.location.href);
         let params = new URLSearchParams(url.search);
+
+        // be sure we start with a 'clean' layout
+        resetMap();
+
         if(params.get('hideBanner')) {
                 hideBanner();
         }
@@ -496,8 +506,30 @@ function end_load_history() {
         }
         if(params.get('hideSidebar')) {
                 toggleSidebarVisibility();
-                // Since aspect ratio changes, call for a map reset to center it
-                resetMap();
+        }
+        if(params.get('zoomOut')) {
+                let c = parseInt(params.get('zoomOut'), 10);
+                zoomOut(c);
+        }
+        if(params.get('zoomIn')) {
+                let c = parseInt(params.get('zoomIn'), 10);
+                zoomIn(c);
+        }
+        if(params.get('moveUp')) {
+                let c = parseInt(params.get('moveUp'), 10);
+                moveUp(c);
+        }
+        if(params.get('moveDown')) {
+                let c = parseInt(params.get('moveDown'), 10);
+                moveDown(c);
+        }
+        if(params.get('moveLeft')) {
+                let c = parseInt(params.get('moveLeft'), 10);
+                moveLeft(c);
+        }
+        if(params.get('moveRight')) {
+                let c = parseInt(params.get('moveRight'), 10);
+                moveRight(c);
         }
 }
 
@@ -1924,7 +1956,83 @@ function hideBanner() {
 
 // put the banner back (not sure how we'd use this one)
 function showBanner() {
-        var h = document.getElementById("header");
+        let h = document.getElementById("header");
         document.getElementById("layout_container").style.height = '100% ' - h.style.height;
         h.style.display = 'flex'; 
+}
+
+// a helper to restrict the range of the inputs
+function restrictUrlRequest(c) {
+        if (c < 1) {
+                c = 1;
+        } else if (c > 5) {
+                c = 5;
+        }               
+        return c;
+}
+
+// simple function to zoom out, but not by too much
+function zoomOut(c) {
+        c = restrictUrlRequest(c);
+        ZoomLvl = OLMap.getView().getZoom();
+        while (c > 0) {
+                ZoomLvl *= 0.95;
+                c--;
+        }
+        localStorage['ZoomLvl'] = ZoomLvl;
+        OLMap.getView().setZoom(ZoomLvl);
+}
+
+// simple function to zoom in, but not by too much
+function zoomIn(c) {
+        c = restrictUrlRequest(c);
+        ZoomLvl = OLMap.getView().getZoom();
+        while (c > 0) {
+                ZoomLvl /= 0.95;
+                c--;
+        }
+        localStorage['ZoomLvl'] = ZoomLvl;
+        OLMap.getView().setZoom(ZoomLvl);
+}
+
+// simple function to move map up at 0.005% of the extent per 'move'
+function moveUp(c) {
+        c = restrictUrlRequest(c);
+        let cn = OLMap.getView().getCenter();
+        let ht = ol.extent.getHeight(OLMap.getView().getProjection().getExtent());
+        // 'up' needs a negative number
+        let d = -1.0 *  c * (ht * .005);
+        ol.coordinate.add(cn, [0, d]);
+        OLMap.getView().setCenter(cn);
+}
+
+// simple function to move map down at 1% of the extent per 'move'
+function moveDown(c) {
+        c = restrictUrlRequest(c);
+        let cn = OLMap.getView().getCenter();
+        let ht = ol.extent.getHeight(OLMap.getView().getProjection().getExtent());
+        let d = c * (ht * .005);
+        ol.coordinate.add(cn, [0, d]);
+        OLMap.getView().setCenter(cn);
+}
+
+// simple function to move map left at 0.005% of the extent per 'move'
+function moveLeft(c) {
+        c = restrictUrlRequest(c);
+        let cn = OLMap.getView().getCenter();
+        let wd = ol.extent.getWidth(OLMap.getView().getProjection().getExtent());
+        let d = c * (wd * .005);
+        ol.coordinate.add(cn, [d, 0]);
+        OLMap.getView().setCenter(cn);
+}
+
+// simple function to move map right at 1% of the extent per 'move'
+function moveRigth(c) {
+        c = restrictUrlRequest(c);
+        let cn = OLMap.getView().getCenter();
+        let wd = ol.extent.getWidth(OLMap.getView().getProjection().getExtent());
+        // 'right' needs a negative number
+        let d = -1.0 *  c * (wd * .005);
+        ol.coordinate.add(cn, [d, 0]);
+        OLMap.getView().setCenter(cn);
 }
