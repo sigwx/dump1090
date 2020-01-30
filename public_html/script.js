@@ -486,8 +486,32 @@ function applyUrlQueryStrings() {
         let url = new URL(window.location.href);
         let params = new URLSearchParams(url.search);
 
-        // be sure we start with a 'clean' layout
-        resetMap();
+        // be sure we start with a 'clean' layout, but only if we need it
+        var allOptions = [
+                'hideBanner',
+                'showBanner',
+                'hideAltitude',
+                'showTracks',
+                'hideMap',
+                'hideSidebar',
+                'zoomOut',
+                'zoomIn',
+                'moveUp',
+                'moveDown',
+                'moveLeft',
+                'moveRight'
+        ]
+        var needReset = false;
+        for (var option of allOptions) {
+                if (params.has(option)) {
+                        needReset = true;
+                        break;
+                }
+        }
+        
+        if (needReset) {
+                resetMap();
+        }
 
         if(params.get('hideBanner')) {
                 hideBanner();
@@ -508,28 +532,22 @@ function applyUrlQueryStrings() {
                 toggleSidebarVisibility();
         }
         if(params.get('zoomOut')) {
-                let c = parseInt(params.get('zoomOut'), 10);
-                zoomOut(c);
+                zoomMap(params.get('zoomOut'), true);
         }
         if(params.get('zoomIn')) {
-                let c = parseInt(params.get('zoomIn'), 10);
-                zoomIn(c);
+                zoomMap(params.get('zoomIn'), false);
         }
         if(params.get('moveUp')) {
-                let c = parseInt(params.get('moveUp'), 10);
-                moveUp(c);
+                moveMap(params.get('moveUp'), true, true);
         }
         if(params.get('moveDown')) {
-                let c = parseInt(params.get('moveDown'), 10);
-                moveDown(c);
-        }
-        if(params.get('moveLeft')) {
-                let c = parseInt(params.get('moveLeft'), 10);
-                moveLeft(c);
+                moveMap(params.get('moveDown'), true, false);
         }
         if(params.get('moveRight')) {
-                let c = parseInt(params.get('moveRight'), 10);
-                moveRight(c);
+                moveMap(params.get('moveRight'), false, true);
+        }
+        if(params.get('moveLeft')) {
+                moveMap(params.get('moveLeft'), false, false);
         }
 }
 
@@ -1963,76 +1981,47 @@ function showBanner() {
 
 // a helper to restrict the range of the inputs
 function restrictUrlRequest(c) {
-        if (c < 1) {
-                c = 1;
-        } else if (c > 5) {
-                c = 5;
+        let v = parseFloat(c);
+        if (v < 0) {
+                v = 0;
+        } else if (v > 5) {
+                v = 5;
         }               
-        return c;
+        return v;
 }
 
-// simple function to zoom out, but not by too much
-function zoomOut(c) {
+// simple function to zoom, but not by too much per 'amount'
+function zoomMap(c, zoomOut) {
         c = restrictUrlRequest(c);
         ZoomLvl = OLMap.getView().getZoom();
-        while (c > 0) {
-                ZoomLvl *= 0.95;
-                c--;
+        if (zoomOut) {
+                ZoomLvl *= Math.pow(0.95, c);
+        } else {
+                ZoomLvl /= Math.pow(0.95, c);
         }
         localStorage['ZoomLvl'] = ZoomLvl;
         OLMap.getView().setZoom(ZoomLvl);
 }
 
-// simple function to zoom in, but not by too much
-function zoomIn(c) {
+// simple function to move map at 0.005% of the extent per 'move'
+function moveMap(c, moveVertical, moveUpRight) {
         c = restrictUrlRequest(c);
-        ZoomLvl = OLMap.getView().getZoom();
-        while (c > 0) {
-                ZoomLvl /= 0.95;
-                c--;
+        let cn = OLMap.getView().getCenter();
+        let dist = 0;
+        if (moveVertical) {
+                dist = ol.extent.getHeight(OLMap.getView().getProjection().getExtent());
+        } else {
+                dist = ol.extent.getWidth(OLMap.getView().getProjection().getExtent());
         }
-        localStorage['ZoomLvl'] = ZoomLvl;
-        OLMap.getView().setZoom(ZoomLvl);
-}
-
-// simple function to move map up at 0.005% of the extent per 'move'
-function moveUp(c) {
-        c = restrictUrlRequest(c);
-        let cn = OLMap.getView().getCenter();
-        let ht = ol.extent.getHeight(OLMap.getView().getProjection().getExtent());
-        // 'up' needs a negative number
-        let d = -1.0 *  c * (ht * .005);
-        ol.coordinate.add(cn, [0, d]);
-        OLMap.getView().setCenter(cn);
-}
-
-// simple function to move map down at 1% of the extent per 'move'
-function moveDown(c) {
-        c = restrictUrlRequest(c);
-        let cn = OLMap.getView().getCenter();
-        let ht = ol.extent.getHeight(OLMap.getView().getProjection().getExtent());
-        let d = c * (ht * .005);
-        ol.coordinate.add(cn, [0, d]);
-        OLMap.getView().setCenter(cn);
-}
-
-// simple function to move map left at 0.005% of the extent per 'move'
-function moveLeft(c) {
-        c = restrictUrlRequest(c);
-        let cn = OLMap.getView().getCenter();
-        let wd = ol.extent.getWidth(OLMap.getView().getProjection().getExtent());
-        let d = c * (wd * .005);
-        ol.coordinate.add(cn, [d, 0]);
-        OLMap.getView().setCenter(cn);
-}
-
-// simple function to move map right at 1% of the extent per 'move'
-function moveRigth(c) {
-        c = restrictUrlRequest(c);
-        let cn = OLMap.getView().getCenter();
-        let wd = ol.extent.getWidth(OLMap.getView().getProjection().getExtent());
-        // 'right' needs a negative number
-        let d = -1.0 *  c * (wd * .005);
-        ol.coordinate.add(cn, [d, 0]);
+        let d = c * (dist * .005);
+        // 'up' or 'right' needs a negative number
+        if (moveUpRight) {
+                d *= -1.0;
+        }
+        if (moveVertical) {
+                ol.coordinate.add(cn, [0, d]);
+        } else {
+                ol.coordinate.add(cn, [d, 0]);
+        }
         OLMap.getView().setCenter(cn);
 }
