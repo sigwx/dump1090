@@ -476,73 +476,97 @@ function end_load_history() {
 
 // Function to apply any URL query value to the map before we start
 function applyUrlQueryStrings() {
-        // if asked, toggle featrues at start
-        let url = new URL(window.location.href);
-        let params = new URLSearchParams(url.search);
+    // if asked, toggle featrues at start
+    let url = new URL(window.location.href);
+    let params = new URLSearchParams(url.search);
 
-        // be sure we start with a 'clean' layout, but only if we need it
-        var allOptions = [
-                'hideBanner',
-                'showBanner',
-                'hideAltitude',
-                'showTracks',
-                'hideMap',
-                'hideSidebar',
-                'zoomOut',
-                'zoomIn',
-                'moveUp',
-                'moveDown',
-                'moveLeft',
-                'moveRight'
-        ]
-        var needReset = false;
-        for (var option of allOptions) {
-                if (params.has(option)) {
-                        needReset = true;
-                        break;
-                }
+    // be sure we start with a 'clean' layout, but only if we need it
+    var allOptions = [
+        'hideBanner',
+        'showBanner',
+        'hideAltitude',
+        'showAltitude',
+        'showTracks',
+        'hideMap',
+        'hideSidebar',
+        'zoomOut',
+        'zoomIn',
+        'moveUp',
+        'moveDown',
+        'moveLeft',
+        'moveRight',
+        'units',
+        'enableRings',
+        'ringCount',
+        'ringBaseDistance',
+        'ringInterval'
+    ]
+    var needReset = false;
+    for (var option of allOptions) {
+        if (params.has(option)) {
+            needReset = true;
+            break;
         }
-        
-        if (needReset) {
-                resetMap();
-        }
+    }
+    
+    if (needReset) {
+        resetMap();
+    }
 
-        if(params.get('hideBanner')) {
-                hideBanner();
-        }
-        if(params.get('showBanner')) {
-                showBanner();
-        }
-        if(params.get('hideAltitude')) {
-                toggleAltitudeChart(true);
-        }
-        if(params.get('showTracks')) {
-                selectAllPlanes();
-        }
-        if(params.get('hideMap')) {
-                expandSidebar();
-        }
-        if(params.get('hideSidebar')) {
-                toggleSidebarVisibility();
-        }
-        if(params.get('zoomOut')) {
-                zoomMap(params.get('zoomOut'), true);
-        }
-        if(params.get('zoomIn')) {
-                zoomMap(params.get('zoomIn'), false);
-        }
-        if(params.get('moveUp')) {
-                moveMap(params.get('moveUp'), true, true);
-        }
-        if(params.get('moveDown')) {
-                moveMap(params.get('moveDown'), true, false);
-        }
-        if(params.get('moveRight')) {
-                moveMap(params.get('moveRight'), false, true);
-        }
-        if(params.get('moveLeft')) {
-                moveMap(params.get('moveLeft'), false, false);
-        }
+    if(params.get('hideBanner')) {
+        hideBanner();
+    }
+    if(params.get('showBanner')) {
+        showBanner();
+    }
+    if(params.get('hideAltitude')) {
+        showAltitude(false);
+    }
+    if(params.get('showAltitude')) {
+        showAltitude(true);
+    }
+    if(params.get('showTracks')) {
+        selectAllPlanes();
+    }
+    if(params.get('hideMap')) {
+        expandSidebar();
+    }
+    if(params.get('hideSidebar')) {
+        toggleSidebarVisibility();
+    }
+    if(params.get('zoomOut')) {
+        zoomMap(params.get('zoomOut'), true);
+    }
+    if(params.get('zoomIn')) {
+        zoomMap(params.get('zoomIn'), false);
+    }
+    if(params.get('moveUp')) {
+        moveMap(params.get('moveUp'), true, true);
+    }
+    if(params.get('moveDown')) {
+        moveMap(params.get('moveDown'), true, false);
+    }
+    if(params.get('moveRight')) {
+        moveMap(params.get('moveRight'), false, true);
+    }
+    if(params.get('moveLeft')) {
+        moveMap(params.get('moveLeft'), false, false);
+    }
+    if(params.get('units')) {
+        setUnits(params.get('units'));
+    }
+    if(params.get('enableRings')) {
+        enableRings(true);
+    }
+    if(params.get('ringCount')) {
+        setRingCount(params.get('ringCount'));
+    }
+    if(params.get('ringBaseDistance')) {
+        setRingBaseDistance(params.get('ringBaseDistance'));
+    }
+    if(params.get('ringInterval')) {
+        setRingInterval(params.get('ringInterval'));
+    }
 }
 
 // Make a LineString with 'points'-number points
@@ -1804,12 +1828,16 @@ function initializeUnitsSelector() {
 }
 
 function onDisplayUnitsChanged(e) {
-    var displayUnits = e.target.value;
-    // Save display units to local storage
-    localStorage['displayUnits'] = displayUnits;
-    DisplayUnits = displayUnits;
 
-    setAltitudeLegend(displayUnits);
+    if (e) {
+        var displayUnits = e.target.value;
+        // Save display units to local storage
+        localStorage['displayUnits'] = displayUnits;
+    }
+
+    DisplayUnits = localStorage['displayUnits'];
+
+    setAltitudeLegend(DisplayUnits);
 
     // Update filters
     updatePlaneFilter();
@@ -1827,7 +1855,7 @@ function onDisplayUnitsChanged(e) {
     // Reset map scale line units
     OLMap.getControls().forEach(function(control) {
         if (control instanceof ol.control.ScaleLine) {
-            control.setUnits(displayUnits);
+            control.setUnits(DisplayUnits);
         }
     });
 }
@@ -1993,137 +2021,191 @@ function getAirframesModeSLink(code) {
 
 // takes in an elemnt jQuery path and the OL3 layer name and toggles the visibility based on clicking it
 function toggleLayer(element, layer) {
-	// set initial checked status
-	ol.control.LayerSwitcher.forEachRecursive(layers, function(lyr) { 
-		if (lyr.get('name') === layer && lyr.getVisible()) {
-			$(element).addClass('settingsCheckboxChecked');
-		}
-	});
-	$(element).on('click', function() {
-		var visible = false;
-		if ($(element).hasClass('settingsCheckboxChecked')) {
-			visible = true;
-		}
-		ol.control.LayerSwitcher.forEachRecursive(layers, function(lyr) { 
-			if (lyr.get('name') === layer) {
-				if (visible) {
-					lyr.setVisible(false);
-					$(element).removeClass('settingsCheckboxChecked');
-				} else {
-					lyr.setVisible(true);
-					$(element).addClass('settingsCheckboxChecked');
-				}
-			}
-		});
-	});
+    // set initial checked status
+    ol.control.LayerSwitcher.forEachRecursive(layers, function(lyr) { 
+        if (lyr.get('name') === layer && lyr.getVisible()) {
+            $(element).addClass('settingsCheckboxChecked');
+        }
+    });
+    $(element).on('click', function() {
+        var visible = false;
+        if ($(element).hasClass('settingsCheckboxChecked')) {
+            visible = true;
+        }
+        ol.control.LayerSwitcher.forEachRecursive(layers, function(lyr) { 
+            if (lyr.get('name') === layer) {
+                if (visible) {
+                    lyr.setVisible(false);
+                    $(element).removeClass('settingsCheckboxChecked');
+                } else {
+                    lyr.setVisible(true);
+                    $(element).addClass('settingsCheckboxChecked');
+                }
+            }
+        });
+    });
 }
 
 // check status.json if it has a serial number for a flightfeeder
 function flightFeederCheck() {
-	$.ajax('/status.json', {
-		success: function(data) {
-			if (data.type === "flightfeeder") {
-				isFlightFeeder = true;
-				updatePiAwareOrFlightFeeder();
-			}
-		}
-	})
+    $.ajax('/status.json', {
+        success: function(data) {
+            if (data.type === "flightfeeder") {
+                isFlightFeeder = true;
+                updatePiAwareOrFlightFeeder();
+            }
+        }
+    })
 }
 
 // updates the page to replace piaware with flightfeeder references
 function updatePiAwareOrFlightFeeder() {
-	if (isFlightFeeder) {
-		$('.piAwareLogo').hide();
-		$('.flightfeederLogo').show();
-		PageName = 'FlightFeeder SkyAware';
-	} else {
-		$('.flightfeederLogo').hide();
-		$('.piAwareLogo').show();
-		PageName = 'PiAware SkyAware';
-	}
-	refreshPageTitle();
+    if (isFlightFeeder) {
+        $('.piAwareLogo').hide();
+        $('.flightfeederLogo').show();
+        PageName = 'FlightFeeder SkyAware';
+    } else {
+        $('.flightfeederLogo').hide();
+        $('.piAwareLogo').show();
+        PageName = 'PiAware SkyAware';
+    }
+    refreshPageTitle();
 }
 
 // for a kiosk to show maximum data possible
 function hideBanner() {
-        document.getElementById("header").style.display = 'none'; 
-        document.getElementById("layout_container").style.height = '100%';
+    document.getElementById("header").style.display = 'none'; 
+    document.getElementById("layout_container").style.height = '100%';
 }
 
 // put the banner back (not sure how we'd use this one)
 function showBanner() {
-        let h = document.getElementById("header");
-        document.getElementById("layout_container").style.height = '100% ' - h.style.height;
-        h.style.display = 'flex'; 
+    let h = document.getElementById("header");
+    document.getElementById("layout_container").style.height = '100% ' - h.style.height;
+    h.style.display = 'flex'; 
 }
 
 // a helper to restrict the range of the inputs
 function restrictUrlRequest(c) {
-        let v = parseFloat(c);
-        if (v < 0) {
-                v = 0;
-        } else if (v > 5) {
-                v = 5;
-        }               
-        return v;
+    let v = parseFloat(c);
+    if (v < 0) {
+        v = 0;
+    } else if (v > 5) {
+        v = 5;
+    }
+    return v;
 }
 
 // simple function to zoom, but not by too much per 'amount'
 function zoomMap(c, zoomOut) {
-        c = restrictUrlRequest(c);
-        ZoomLvl = OLMap.getView().getZoom();
-        if (zoomOut) {
-                ZoomLvl *= Math.pow(0.95, c);
-        } else {
-                ZoomLvl /= Math.pow(0.95, c);
-        }
-        localStorage['ZoomLvl'] = ZoomLvl;
-        OLMap.getView().setZoom(ZoomLvl);
+    c = restrictUrlRequest(c);
+    ZoomLvl = OLMap.getView().getZoom();
+    if (zoomOut) {
+        ZoomLvl *= Math.pow(0.95, c);
+    } else {
+        ZoomLvl /= Math.pow(0.95, c);
+    }
+    localStorage['ZoomLvl'] = ZoomLvl;
+    OLMap.getView().setZoom(ZoomLvl);
 }
 
 // simple function to move map at 0.005% of the extent per 'move'
 function moveMap(c, moveVertical, moveUpRight) {
-        c = restrictUrlRequest(c);
-        let cn = OLMap.getView().getCenter();
-        let dist = 0;
-        if (moveVertical) {
-                dist = ol.extent.getHeight(OLMap.getView().getProjection().getExtent());
-        } else {
-                dist = ol.extent.getWidth(OLMap.getView().getProjection().getExtent());
-        }
-        let d = c * (dist * .005);
-        // 'up' or 'right' needs a negative number
-        if (moveUpRight) {
-                d *= -1.0;
-        }
-        if (moveVertical) {
-                ol.coordinate.add(cn, [0, d]);
-        } else {
-                ol.coordinate.add(cn, [d, 0]);
-        }
-        OLMap.getView().setCenter(cn);
+    c = restrictUrlRequest(c);
+    let cn = OLMap.getView().getCenter();
+    let dist = 0;
+    if (moveVertical) {
+        dist = ol.extent.getHeight(OLMap.getView().getProjection().getExtent());
+    } else {
+        dist = ol.extent.getWidth(OLMap.getView().getProjection().getExtent());
+    }
+    let d = c * (dist * .005);
+    // 'up' or 'right' needs a negative number
+    if (moveUpRight) {
+        d *= -1.0;
+    }
+    if (moveVertical) {
+        ol.coordinate.add(cn, [0, d]);
+    } else {
+        ol.coordinate.add(cn, [d, 0]);
+    }
+    OLMap.getView().setCenter(cn);
+}
+
+// function to hide altitude if showing
+function showAltitude(show) {
+    var altitudeChartDisplay = localStorage.getItem('altitudeChart');
+    if (((altitudeChartDisplay === 'show') && !show) || ((altitudeChartDisplay === 'hidden') && show)) {
+        toggleAltitudeChart(true);
+    }
+}
+
+// simple function to set units
+function setUnits(idx) {
+    if (idx == 1) {
+        localStorage['displayUnits'] = "nautical";
+    } else if (idx == 2) {
+        localStorage['displayUnits'] = "metric";
+    } else {
+        localStorage['displayUnits'] = "imperial";
+    }
+    onDisplayUnitsChanged(); 
+}
+
+// simple function to turn on range rings
+function enableRings(enable) {
+    isOn = false;
+    if ($('#sitepos_checkbox').hasClass('settingsCheckboxChecked')) {
+        isOn = true;
+    }
+
+    // if we want it on but its not, or we want it off but its on, toggle it
+    if ((enable && !isOn) || (!enable && isOn)) {
+        toggleLayer('#sitepos_checkbox', 'site_pos');
+    }
+}
+
+// simple function to set range ring count
+function setRingCount(val) {
+    localStorage['SiteCirclesCount'] = val;
+    setRangeRings();
+    createSiteCircleFeatures();
+}
+
+// simple function to set range ring distance
+function setRingBaseDistance(val) {
+    localStorage['SiteCirclesBaseDistance'] = val;
+    setRangeRings();
+    createSiteCircleFeatures();
+}
+
+// simple function to set range ring interval
+function setRingInterval(val) {
+    localStorage['SiteCirclesInterval'] = val;
+    setRangeRings();
+    createSiteCircleFeatures();
 }
 
 // Set range ring globals and populate form values
 function setRangeRings() {
-        SiteCirclesCount = Number(localStorage['SiteCirclesCount']) || DefaultSiteCirclesCount;
-        SiteCirclesBaseDistance = Number(localStorage['SiteCirclesBaseDistance']) || DefaultSiteCirclesBaseDistance;
-        SiteCirclesInterval = Number(localStorage['SiteCirclesInterval']) || DefaultSiteCirclesInterval;
+    SiteCirclesCount = Number(localStorage['SiteCirclesCount']) || DefaultSiteCirclesCount;
+    SiteCirclesBaseDistance = Number(localStorage['SiteCirclesBaseDistance']) || DefaultSiteCirclesBaseDistance;
+    SiteCirclesInterval = Number(localStorage['SiteCirclesInterval']) || DefaultSiteCirclesInterval;
 
-	// Populate text fields with current values
-        $('#range_ring_count').val(SiteCirclesCount);
-        $('#range_ring_base').val(SiteCirclesBaseDistance);
-        $('#range_ring_interval').val(SiteCirclesInterval);
+    // Populate text fields with current values
+    $('#range_ring_count').val(SiteCirclesCount);
+    $('#range_ring_base').val(SiteCirclesBaseDistance);
+    $('#range_ring_interval').val(SiteCirclesInterval);
 }
 
 // redraw range rings with form values
 function onSetRangeRings() {
-	// Save state to localStorage
-	localStorage.setItem('SiteCirclesCount', parseFloat($("#range_ring_count").val().trim()));
-	localStorage.setItem('SiteCirclesBaseDistance', parseFloat($("#range_ring_base").val().trim()));
-	localStorage.setItem('SiteCirclesInterval', parseFloat($("#range_ring_interval").val().trim()));
+    // Save state to localStorage
+    localStorage.setItem('SiteCirclesCount', parseFloat($("#range_ring_count").val().trim()));
+    localStorage.setItem('SiteCirclesBaseDistance', parseFloat($("#range_ring_base").val().trim()));
+    localStorage.setItem('SiteCirclesInterval', parseFloat($("#range_ring_interval").val().trim()));
 
-	setRangeRings();
+    setRangeRings();
 
-	createSiteCircleFeatures();
+    createSiteCircleFeatures();
 }
