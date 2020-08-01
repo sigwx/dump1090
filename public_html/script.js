@@ -24,7 +24,7 @@ var SpecialSquawks = {
 };
 
 // Get current map settings
-var CenterLat, CenterLon, ZoomLvl, MapType;
+var CenterLat, CenterLon, ZoomLvl, MapType, SiteCirclesCount, SiteCirclesBaseDistance, SiteCirclesInterval;
 
 var Dump1090Version = "unknown version";
 var RefreshInterval = 1000;
@@ -263,6 +263,7 @@ function initialize() {
 
         // Set initial element visibility
         $("#show_map_button").hide();
+        $("#range_ring_column").hide();
         setColumnVisibility();
 
         // Initialize other controls
@@ -320,24 +321,15 @@ function initialize() {
         });
 
         $('#grouptype_checkbox').on('click', function() {
-        	if ($('#grouptype_checkbox').hasClass('settingsCheckboxChecked')) {
-        		sortByDistance();
-        	} else {
-        		sortByDataSource();
-        	}
-        	
-        });
+		toggleGroupByDataType(true);
+	});
 
         $('#altitude_checkbox').on('click', function() {
         	toggleAltitudeChart(true);
         });
 
         $('#selectall_checkbox').on('click', function() {
-        	if ($('#selectall_checkbox').hasClass('settingsCheckboxChecked')) {
-        		deselectAllPlanes();
-        	} else {
-        		selectAllPlanes();
-        	}
+		toggleAllPlanes(true);
         })
 
         // Force map to redraw if sidebar container is resized - use a timer to debounce
@@ -350,6 +342,8 @@ function initialize() {
         filterGroundVehicles(false);
         filterBlockedMLAT(false);
         toggleAltitudeChart(false);
+        toggleAllPlanes(false);
+        toggleGroupByDataType(false);
 
         // Get receiver metadata, reconfigure using it, then continue
         // with initialization
@@ -509,16 +503,21 @@ function initialize_map() {
         CenterLon = Number(localStorage['CenterLon']) || DefaultCenterLon;
         ZoomLvl = Number(localStorage['ZoomLvl']) || DefaultZoomLvl;
         MapType = localStorage['MapType'];
+        var groupByDataTypeBox = localStorage.getItem('groupByDataType');
 
         // Set SitePosition, initialize sorting
         if (SiteShow && (typeof SiteLat !==  'undefined') && (typeof SiteLon !==  'undefined')) {
 	        SitePosition = [SiteLon, SiteLat];
-                sortByDistance();
+		if (groupByDataTypeBox === 'deselected') {
+			sortByDistance();
+		}
         } else {
 	        SitePosition = null;
                 PlaneRowTemplate.cells[9].style.display = 'none'; // hide distance column
                 document.getElementById("distance").style.display = 'none'; // hide distance header
-                sortByAltitude();
+                if (groupByDataTypeBox === 'deselected') {
+			sortByAltitude();
+		}
         }
 
         // Maybe hide flag info
@@ -722,7 +721,32 @@ function initialize_map() {
                 var feature = new ol.Feature(new ol.geom.Point(ol.proj.fromLonLat(SitePosition)));
                 feature.setStyle(markerStyle);
                 StaticFeatures.push(feature);
-        
+
+		$('#range_ring_column').show();
+
+                setRangeRings();
+
+                $('#range_rings_button').click(onSetRangeRings);
+                $("#range_ring_form").validate({
+                    errorPlacement: function(error, element) {
+                        return true;
+                    },
+                    rules: {
+                        ringCount: {
+                            number: true,
+		            min: 0
+                        },
+                        baseRing: {
+                            number: true,
+                            min: 0
+                        },
+                        ringInterval: {
+                            number: true,
+                            min: 0
+                        }
+                    }
+                });
+
                 if (SiteCircles) {
                     createSiteCircleFeatures();
                 }
@@ -809,8 +833,8 @@ function createSiteCircleFeatures() {
         conversionFactor = 1609.0;
     }
 
-    for (var i=0; i < SiteCirclesDistances.length; ++i) {
-            var distance = SiteCirclesDistances[i] * conversionFactor;
+    for (var i=0; i < SiteCirclesCount; ++i) {
+	    var distance = (SiteCirclesBaseDistance + (SiteCirclesInterval * i)) * conversionFactor;
             var circle = make_geodesic_circle(SitePosition, distance, 360);
             circle.transform('EPSG:4326', 'EPSG:3857');
             var feature = new ol.Feature(circle);
@@ -956,6 +980,12 @@ function refreshSelected() {
                 $('#selected_seen').text(selected.seen.toFixed(1) + 's');
         }
 
+        if (selected.seen_pos <= 1) {
+               $('#selected_seen_pos').text('now');
+        } else {
+               $('#selected_seen_pos').text(selected.seen_pos.toFixed(1) + 's');
+        }
+
         $('#selected_country').text(selected.icaorange.country);
         if (ShowFlags && selected.icaorange.flag_image !== null) {
                 $('#selected_flag').removeClass('hidden');
@@ -969,13 +999,8 @@ function refreshSelected() {
                 $('#selected_position').text('n/a');
                 $('#selected_follow').addClass('hidden');
         } else {
-                
-                if (selected.seen_pos > 1) {
-                        $('#selected_position').text(format_latlng(selected.position));
-                } else {
-                        $('#selected_position').text(format_latlng(selected.position));
-				}
-				
+                $('#selected_position').text(format_latlng(selected.position));
+                $('#position_age').text(selected.seen_pos.toFixed(1) + 's');
                 $('#selected_follow').removeClass('hidden');
                 if (FollowSelected) {
                         $('#selected_follow').css('font-weight', 'bold');
@@ -1342,11 +1367,11 @@ function resortTable() {
 }
 
 function sortBy(id,sc,se) {
-		if (id !== 'data_source') {
-			$('#grouptype_checkbox').removeClass('settingsCheckboxChecked');
-		} else {
-			$('#grouptype_checkbox').addClass('settingsCheckboxChecked');
-		}
+        if (id !== 'data_source') {
+                $('#grouptype_checkbox').removeClass('settingsCheckboxChecked');
+		localStorage.setItem('groupByDataType', 'deselected');
+        }
+
         if (id === sortId) {
                 sortAscending = !sortAscending;
                 PlanesOrdered.reverse(); // this correctly flips the order of rows that compare equal
@@ -1465,6 +1490,45 @@ function selectNewPlanes() {
 	}
 }
 
+function toggleGroupByDataType(switchToggle) {
+	if (typeof localStorage['groupByDataType'] === 'undefined') {
+		localStorage.setItem('groupByDataType', 'deselected');
+	}
+
+	var groupByDataType = localStorage.getItem('groupByDataType');
+	if (switchToggle === true) {
+		groupByDataType = (groupByDataType === 'deselected') ? 'selected' : 'deselected';
+	}
+
+	if (groupByDataType === 'deselected') {
+		$('#grouptype_checkbox').removeClass('settingsCheckboxChecked');
+	} else {
+		sortByDataSource();
+		$('#grouptype_checkbox').addClass('settingsCheckboxChecked');
+	}
+
+	localStorage.setItem('groupByDataType', groupByDataType);
+}
+
+function toggleAllPlanes(switchToggle) {
+	if (typeof localStorage['allPlanesSelection'] === 'undefined') {
+		localStorage.setItem('allPlanesSelection','deselected');
+	}
+
+	var allPlanesSelection = localStorage.getItem('allPlanesSelection');
+	if (switchToggle === true) {
+		allPlanesSelection = (allPlanesSelection === 'deselected') ? 'selected' : 'deselected';
+	}
+
+	if (allPlanesSelection === 'deselected') {
+		deselectAllPlanes();
+	} else {
+		selectAllPlanes();
+	}
+
+	localStorage.setItem('allPlanesSelection', allPlanesSelection);
+}
+
 // deselect all the planes
 function deselectAllPlanes() {
 	for(var key in Planes) {
@@ -1492,6 +1556,13 @@ function resetMap() {
         localStorage['CenterLat'] = CenterLat = DefaultCenterLat;
         localStorage['CenterLon'] = CenterLon = DefaultCenterLon;
         localStorage['ZoomLvl']   = ZoomLvl = DefaultZoomLvl;
+
+        // Reset to default range rings
+        localStorage['SiteCirclesCount'] = SiteCirclesCount = DefaultSiteCirclesCount;
+        localStorage['SiteCirclesBaseDistance'] = SiteCirclesBaseDistance = DefaultSiteCirclesBaseDistance;
+        localStorage['SiteCirclesInterval'] = SiteCirclesInterval = DefaultSiteCirclesInterval;
+        setRangeRings();
+        createSiteCircleFeatures();
 
         // Set and refresh
         OLMap.getView().setZoom(ZoomLvl);
@@ -1710,9 +1781,10 @@ function onFilterByAltitude(e) {
 
 function filterGroundVehicles(switchFilter) {
 	if (typeof localStorage['groundVehicleFilter'] === 'undefined') {
-		localStorage['groundVehicleFilter'] = 'not_filtered';
+		localStorage.setItem('groundVehicleFilter' , 'not_filtered');
 	}
-	var groundFilter = localStorage['groundVehicleFilter'];
+
+	var groundFilter = localStorage.getItem('groundVehicleFilter');
 	if (switchFilter === true) {
 		groundFilter = (groundFilter === 'not_filtered') ? 'filtered' : 'not_filtered';
 	}
@@ -1721,15 +1793,17 @@ function filterGroundVehicles(switchFilter) {
 	} else {
 		$('#groundvehicle_filter').removeClass('settingsCheckboxChecked');
 	}
-	localStorage['groundVehicleFilter'] = groundFilter;
+
+	localStorage.setItem('groundVehicleFilter',groundFilter);
 	PlaneFilter.groundVehicles = groundFilter;
 }
 
 function filterBlockedMLAT(switchFilter) {
 	if (typeof localStorage['blockedMLATFilter'] === 'undefined') {
-		localStorage['blockedMLATFilter'] = 'not_filtered';
+		localStorage.setItem('blockedMLATFilter','not_filtered');
 	}
-	var blockedMLATFilter = localStorage['blockedMLATFilter'];
+
+	var blockedMLATFilter = localStorage.getItem('blockedMLATFilter');
 	if (switchFilter === true) {
 		blockedMLATFilter = (blockedMLATFilter === 'not_filtered') ? 'filtered' : 'not_filtered';
 	}
@@ -1738,24 +1812,27 @@ function filterBlockedMLAT(switchFilter) {
 	} else {
 		$('#blockedmlat_filter').removeClass('settingsCheckboxChecked');
 	}
-	localStorage['blockedMLATFilter'] = blockedMLATFilter;
+	localStorage.setItem('blockedMLATFilter', blockedMLATFilter);
 	PlaneFilter.blockedMLAT = blockedMLATFilter;
 }
 
 function toggleAltitudeChart(switchToggle) {
 	if (typeof localStorage['altitudeChart'] === 'undefined') {
-		localStorage['altitudeChart'] = 'show';
+		localStorage.setItem('altitudeChart','show');
 	}
-	var altitudeChartDisplay = localStorage['altitudeChart'];
+
+	var altitudeChartDisplay = localStorage.getItem('altitudeChart');
 	if (switchToggle === true) {
 		altitudeChartDisplay = (altitudeChartDisplay === 'show') ? 'hidden' : 'show';
 	}
-    // if you're using custom colors always hide the chart
-    if (customAltitudeColors === true) {
-        altitudeChartDisplay = 'hidden';
-        // also hide the control option
-        $('#altitude_chart_container').hide();
-    }
+
+	// if you're using custom colors always hide the chart
+	if (customAltitudeColors === true) {
+        	altitudeChartDisplay = 'hidden';
+		// also hide the control option
+        	$('#altitude_chart_container').hide();
+    	}
+
 	if (altitudeChartDisplay === 'show') {
 		$('#altitude_checkbox').addClass('settingsCheckboxChecked');
 		$('#altitude_chart').show();
@@ -1763,7 +1840,8 @@ function toggleAltitudeChart(switchToggle) {
 		$('#altitude_checkbox').removeClass('settingsCheckboxChecked');
 		$('#altitude_chart').hide();
 	}
-	localStorage['altitudeChart'] = altitudeChartDisplay;
+
+	localStorage.setItem('altitudeChart', altitudeChartDisplay);
 }
 
 function onResetAltitudeFilter(e) {
@@ -1887,4 +1965,28 @@ function updatePiAwareOrFlightFeeder() {
 		PageName = 'PiAware SkyAware';
 	}
 	refreshPageTitle();
+}
+
+// Set range ring globals and populate form values
+function setRangeRings() {
+        SiteCirclesCount = Number(localStorage['SiteCirclesCount']) || DefaultSiteCirclesCount;
+        SiteCirclesBaseDistance = Number(localStorage['SiteCirclesBaseDistance']) || DefaultSiteCirclesBaseDistance;
+        SiteCirclesInterval = Number(localStorage['SiteCirclesInterval']) || DefaultSiteCirclesInterval;
+
+	// Populate text fields with current values
+        $('#range_ring_count').val(SiteCirclesCount);
+        $('#range_ring_base').val(SiteCirclesBaseDistance);
+        $('#range_ring_interval').val(SiteCirclesInterval);
+}
+
+// redraw range rings with form values
+function onSetRangeRings() {
+	// Save state to localStorage
+	localStorage.setItem('SiteCirclesCount', parseFloat($("#range_ring_count").val().trim()));
+	localStorage.setItem('SiteCirclesBaseDistance', parseFloat($("#range_ring_base").val().trim()));
+	localStorage.setItem('SiteCirclesInterval', parseFloat($("#range_ring_interval").val().trim()));
+
+	setRangeRings();
+
+	createSiteCircleFeatures();
 }
