@@ -586,16 +586,16 @@ function applyUrlQueryStrings() {
         zoomMap(params.get('zoomIn'), false);
     }
     if(params.get('moveUp')) {
-        moveMap(params.get('moveUp'), true, true);
+        moveMap(params.get('moveUp'), true, false);
     }
     if(params.get('moveDown')) {
-        moveMap(params.get('moveDown'), true, false);
+        moveMap(params.get('moveDown'), true, true);
     }
     if(params.get('moveRight')) {
-        moveMap(params.get('moveRight'), false, true);
+        moveMap(params.get('moveRight'), false, false);
     }
     if(params.get('moveLeft')) {
-        moveMap(params.get('moveLeft'), false, false);
+        moveMap(params.get('moveLeft'), false, true);
     }
     if(params.get('units')) {
         setUnits(params.get('units'));
@@ -2192,7 +2192,7 @@ function zoomMap(c, zoomOut) {
 }
 
 // simple function to move map at 0.005% of the extent per 'move'
-function moveMap(c, moveVertical, moveUpRight) {
+function moveMap(c, moveVertical, moveDownLeft) {
     c = restrictUrlRequest(c);
     let cn = OLMap.getView().getCenter();
     let dist = 0;
@@ -2203,7 +2203,7 @@ function moveMap(c, moveVertical, moveUpRight) {
     }
     let d = c * (dist * .005);
     // 'up' or 'right' needs a negative number
-    if (moveUpRight) {
+    if (moveDownLeft) {
         d *= -1.0;
     }
     if (moveVertical) {
