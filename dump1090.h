@@ -280,7 +280,7 @@ typedef enum {
 //======================== structure declarations =========================
 
 typedef enum {
-    SDR_NONE, SDR_IFILE, SDR_RTLSDR, SDR_BLADERF
+    SDR_NONE, SDR_IFILE, SDR_RTLSDR, SDR_BLADERF, SDR_HACKRF, SDR_LIMESDR
 } sdr_type_t;
 
 // Structure representing one magnitude buffer
@@ -295,7 +295,7 @@ struct mag_buf {
 };
 
 // Program global state
-struct {                             // Internal state
+struct _Modes {                             // Internal state
     pthread_t       reader_thread;
 
     pthread_mutex_t data_mutex;      // Mutex to synchronize buffer access
@@ -397,7 +397,9 @@ struct {                             // Internal state
     int stats_latest_1min;
     struct stats stats_5min;
     struct stats stats_15min;
-} Modes;
+};
+
+extern struct _Modes Modes;
 
 // The struct we use to store information about a decoded message.
 struct modesMessage {

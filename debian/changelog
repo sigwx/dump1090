@@ -1,3 +1,23 @@
+dump1090-fa (3.8.2~dev) UNRELEASED; urgency=medium
+
+  * in development
+  * --fix --fix was a bad choice for 2-bit correction since some existing configs
+    accidentally specified it twice anyway. Change 2-bit correction to a separate
+    option, --fix-2bit
+
+ -- Oliver Jowett <oliver.jowett@flightaware.com>  Sat, 02 May 2020 14:50:25 +0800
+
+dump1090-fa (3.8.1) stable; urgency=medium
+
+  * SkyAware: Fixed SkyAware banner aspect ratio
+  * SkyAware: Fixed issue with "Group By Data Type" and "All Aircraft Trails" checkboxes
+    not saving across browser refreshes
+  * SkyAware: Fixed bug with ShowFlags=False config.js setting
+  * SkyAware: Added position age to aircraft detail pane
+  * SkyAware: Added ability to customize range ring distances in SkyAware
+
+ -- Eric Tran <eric.tran@flightaware.com>  Thu, 19 Mar 2020 09:20:00 -6000
+
 dump1090-fa (3.8.0) stable; urgency=medium
 
   * general: Added support for building on Buster.

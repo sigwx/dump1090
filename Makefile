@@ -1,12 +1,31 @@
 PROGNAME=dump1090
 
-RTLSDR ?= yes
-BLADERF ?= yes
+# Try to autodetect available libraries if no explicit setting was used
+
+ifndef RTLSDR
+  ifdef RTLSDR_PREFIX
+    RTLSDR := yes
+  else
+    RTLSDR := $(shell pkg-config --exists librtlsdr && echo "yes" || echo "no")
+  endif
+endif
+
+ifndef BLADERF
+  BLADERF := $(shell pkg-config --exists libbladeRF && echo "yes" || echo "no")
+endif
+
+ifndef HACKRF
+  HACKRF := $(shell pkg-config --exists libhackrf && echo "yes" || echo "no")
+endif
+
+ifndef LIMESDR
+  LIMESDR := $(shell pkg-config --exists LimeSuite && echo "yes" || echo "no")
+endif
 
 CPPFLAGS += -DMODES_DUMP1090_VERSION=\"$(DUMP1090_VERSION)\" -DMODES_DUMP1090_VARIANT=\"dump1090-fa\"
 
 DIALECT = -std=c11
-CFLAGS += $(DIALECT) -O2 -g -Wall -Werror -W -D_DEFAULT_SOURCE
+CFLAGS += $(DIALECT) -O2 -g -Wall -Wmissing-declarations -Werror -W -D_DEFAULT_SOURCE -fno-common
 LIBS = -lpthread -lm -lrt
 
 ifeq ($(RTLSDR), yes)
@@ -38,6 +57,30 @@ ifeq ($(BLADERF), yes)
   CFLAGS += $(shell pkg-config --cflags libbladeRF)
   LIBS_SDR += $(shell pkg-config --libs libbladeRF)
 endif
+
+ifeq ($(HACKRF), yes)
+  SDR_OBJ += sdr_hackrf.o
+  CPPFLAGS += -DENABLE_HACKRF
+  CFLAGS += $(shell pkg-config --cflags libhackrf)
+  LIBS_SDR += $(shell pkg-config --libs libhackrf)
+endif
+
+ifeq ($(LIMESDR), yes)
+  SDR_OBJ += sdr_limesdr.o
+  CPPFLAGS += -DENABLE_LIMESDR
+  CFLAGS += $(shell pkg-config --cflags LimeSuite)
+  LIBS_SDR += $(shell pkg-config --libs LimeSuite)
+endif
+
+all: showconfig dump1090 view1090
+
+showconfig:
+	@echo "Building with:" >&2
+	@echo "  Version string:  $(DUMP1090_VERSION)" >&2
+	@echo "  RTLSDR support:  $(RTLSDR)" >&2
+	@echo "  BladeRF support: $(BLADERF)" >&2
+	@echo "  HackRF support:  $(HACKRF)" >&2
+	@echo "  LimeSDR support: $(LIMESDR)" >&2
 
 all: dump1090 view1090
 
