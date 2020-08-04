@@ -51,6 +51,8 @@
 
 #include <stdarg.h>
 
+struct _Modes Modes;
+
 //
 // ============================= Utility functions ==========================
 //
@@ -102,7 +104,7 @@ void receiverPositionChanged(float lat, float lon, float alt)
 //
 // =============================== Initialization ===========================
 //
-void modesInitConfig(void) {
+static void modesInitConfig(void) {
     // Default everything to zero/NULL
     memset(&Modes, 0, sizeof(Modes));
 
@@ -127,7 +129,7 @@ void modesInitConfig(void) {
 //
 //=========================================================================
 //
-void modesInit(void) {
+static void modesInit(void) {
     int i;
 
     pthread_mutex_init(&Modes.data_mutex,NULL);
@@ -216,7 +218,7 @@ void modesInit(void) {
 // without caring about data acquisition
 //
 
-void *readerThreadEntryPoint(void *arg)
+static void *readerThreadEntryPoint(void *arg)
 {
     MODES_NOTUSED(arg);
 
@@ -237,7 +239,7 @@ void *readerThreadEntryPoint(void *arg)
 // Get raw IQ samples and filter everything is < than the specified level
 // for more than 256 samples in order to reduce example file size
 //
-void snipMode(int level) {
+static void snipMode(int level) {
     int i, q;
     uint64_t c = 0;
 
@@ -255,7 +257,7 @@ void snipMode(int level) {
 //
 // ================================ Main ====================================
 //
-void showHelp(void) {
+static void showHelp(void) {
 
     printf("-----------------------------------------------------------------------------\n");
     printf("| dump1090 ModeS Receiver     %45s |\n", MODES_DUMP1090_VARIANT " " MODES_DUMP1090_VERSION);
@@ -266,6 +268,12 @@ void showHelp(void) {
 #endif
 #ifdef ENABLE_BLADERF
            "ENABLE_BLADERF "
+#endif
+#ifdef ENABLE_HACKRF
+           "ENABLE_HACKRF "
+#endif
+#ifdef ENABLE_LIMESDR
+           "ENABLE_LIMESDR "
 #endif
 #ifdef SC16Q11_TABLE_BITS
     // This is a little silly, but that's how the preprocessor works..
@@ -309,8 +317,8 @@ void showHelp(void) {
 "--lat <latitude>         Reference/receiver latitude for surface posn (opt)\n"
 "--lon <longitude>        Reference/receiver longitude for surface posn (opt)\n"
 "--max-range <distance>   Absolute maximum range for position decoding (in nm, default: 300)\n"
-"--fix                    Enable single-bits error correction using CRC\n"
-"                         (specify twice for two-bit error correction)\n"
+"--fix                    Enable single-bit error correction using CRC\n"
+"--fix-2bit               Enable two-bit error correction using CRC (use with caution)\n"
 "--no-fix                 Disable error correction using CRC\n"
 "--no-crc-check           Disable messages with broken CRC (discouraged)\n"
 "--mlat                   display raw messages in Beast ascii mode\n"
@@ -354,7 +362,7 @@ static void display_total_stats(void)
 // perform tasks we need to do continuously, like accepting new clients
 // from the net, refreshing the screen in interactive mode, and so forth
 //
-void backgroundTasks(void) {
+static void backgroundTasks(void) {
     static uint64_t next_stats_display;
     static uint64_t next_stats_update;
     static uint64_t next_json, next_history;
@@ -481,7 +489,10 @@ int main(int argc, char **argv) {
         } else if (!strcmp(argv[j],"--measure-noise")) {
             // Ignored
         } else if (!strcmp(argv[j],"--fix")) {
-            ++Modes.nfix_crc;
+            if (Modes.nfix_crc < 1)
+                Modes.nfix_crc = 1;
+        } else if (!strcmp(argv[j],"--fix-2bit")) {
+            Modes.nfix_crc = 2;
         } else if (!strcmp(argv[j],"--no-fix")) {
             Modes.nfix_crc = 0;
         } else if (!strcmp(argv[j],"--no-crc-check")) {

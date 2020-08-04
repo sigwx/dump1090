@@ -49,9 +49,34 @@ var MessageRate = 0;
 var NBSP='\u00a0';
 
 var layers;
+var layerGroup;
 
 // piaware vs flightfeeder
 var isFlightFeeder = false;
+
+var checkbox_div_map = new Map ([
+        ['#icao_col_checkbox', '#icao'],
+        ['#flag_col_checkbox', '#flag'],
+        ['#ident_col_checkbox', '#flight'],
+        ['#reg_col_checkbox', '#registration'],
+        ['#ac_col_checkbox', '#aircraft_type'],
+        ['#squawk_col_checkbox', '#squawk'],
+        ['#alt_col_checkbox', '#altitude'],
+        ['#speed_col_checkbox', '#speed'],
+        ['#vrate_col_checkbox', '#vert_rate'],
+        ['#distance_col_checkbox', '#distance'],
+        ['#heading_col_checkbox', '#track'],
+        ['#messages_col_checkbox', '#msgs'],
+        ['#msg_age_col_checkbox', '#seen'],
+        ['#rssi_col_checkbox', '#rssi'],
+        ['#lat_col_checkbox', '#lat'],
+        ['#lon_col_checkbox', '#lon'],
+        ['#datasource_col_checkbox', '#data_source'],
+        ['#airframes_col_checkbox', '#airframes_mode_s_link'],
+        ['#fa_modes_link_checkbox', '#flightaware_mode_s_link'],
+        ['#fa_photo_link_checkbox', '#flightaware_photo_link'],
+
+]);
 
 function processReceiverUpdate(data) {
 	// Loop through all the planes in the data packet
@@ -302,6 +327,14 @@ function initialize() {
         	$('#settings_infoblock').toggle();
         });
 
+        $('#column_select').on('click', function() {
+                $('#column_select_window').toggle();
+        });
+
+        $('#column_select_close_box').on('click', function() {
+                $('#column_select_window').hide();
+        });
+
         $('#settings_close').on('click', function() {
             $('#settings_infoblock').hide();
         });
@@ -332,6 +365,17 @@ function initialize() {
 		toggleAllPlanes(true);
         })
 
+        $('#select_all_column_checkbox').on('click', function() {
+                toggleAllColumns(true);
+        })
+
+        // Event handlers for to column checkboxes
+        checkbox_div_map.forEach(function (checkbox, div) {
+                $(div).on('click', function() {
+                        toggleColumn(checkbox, div, true);
+                });
+        });
+
         // Force map to redraw if sidebar container is resized - use a timer to debounce
         var mapResizeTimeout;
         $("#sidebar_container").on("resize", function() {
@@ -344,6 +388,7 @@ function initialize() {
         toggleAltitudeChart(false);
         toggleAllPlanes(false);
         toggleGroupByDataType(false);
+        toggleAllColumns(false);
 
         // Get receiver metadata, reconfigure using it, then continue
         // with initialization
@@ -577,18 +622,22 @@ function make_geodesic_circle(center, radius, points) {
         var angularDistance = radius / 6378137.0;
         var lon1 = center[0] * Math.PI / 180.0;
         var lat1 = center[1] * Math.PI / 180.0;
-        var geom = new ol.geom.LineString();
+        var geom;
         for (var i = 0; i <= points; ++i) {
-                var bearing = i * 2 * Math.PI / points;
+            var bearing = i * 2 * Math.PI / points;
 
-                var lat2 = Math.asin( Math.sin(lat1)*Math.cos(angularDistance) +
-                                      Math.cos(lat1)*Math.sin(angularDistance)*Math.cos(bearing) );
-                var lon2 = lon1 + Math.atan2(Math.sin(bearing)*Math.sin(angularDistance)*Math.cos(lat1),
-                                             Math.cos(angularDistance)-Math.sin(lat1)*Math.sin(lat2));
+            var lat2 = Math.asin( Math.sin(lat1)*Math.cos(angularDistance) +
+                Math.cos(lat1)*Math.sin(angularDistance)*Math.cos(bearing) );
+            var lon2 = lon1 + Math.atan2(Math.sin(bearing)*Math.sin(angularDistance)*Math.cos(lat1),
+                Math.cos(angularDistance)-Math.sin(lat1)*Math.sin(lat2));
 
-                lat2 = lat2 * 180.0 / Math.PI;
-                lon2 = lon2 * 180.0 / Math.PI;
+            lat2 = lat2 * 180.0 / Math.PI;
+            lon2 = lon2 * 180.0 / Math.PI;
+            if (!geom) {
+                geom = new ol.geom.LineString([[lon2, lat2]]);
+            } else {
                 geom.appendCoordinate([lon2, lat2]);
+            }
         }
         return geom;
 }
@@ -665,7 +714,11 @@ function initialize_map() {
         var foundType = false;
         var baseCount = 0;
 
-        ol.control.LayerSwitcher.forEachRecursive(layers, function(lyr) {
+        layerGroup = new ol.layer.Group({
+                layers: layers
+        })
+
+        ol.control.LayerSwitcher.forEachRecursive(layerGroup, function(lyr) {
                 if (!lyr.get('name'))
                         return;
 
@@ -697,7 +750,7 @@ function initialize_map() {
         })
 
         if (!foundType) {
-                ol.control.LayerSwitcher.forEachRecursive(layers, function(lyr) {
+                ol.control.LayerSwitcher.forEachRecursive(layerGroup, function(lyr) {
                         if (foundType)
                                 return;
                         if (lyr.get('type') === 'base') {
@@ -757,11 +810,12 @@ function initialize_map() {
                                                         function(feature, layer) {
                                                                 return feature.hex;
                                                         },
-                                                        null,
-                                                        function(layer) {
-                                                                return (layer === iconsLayer);
-                                                        },
-                                                        null);
+                                                        {
+                                                                layerFilter: function(layer) {
+                                                                        return (layer === iconsLayer);
+                                                                },
+                                                                hitTolerance: 5,
+                                                        });
                 if (hex) {
                         selectPlaneByHex(hex, (evt.type === 'dblclick'));
                         adjustSelectedInfoBlockPosition();
@@ -779,11 +833,12 @@ function initialize_map() {
             function(feature, layer) {
                     return feature.hex;
             },
-            null,
-            function(layer) {
-                    return (layer === iconsLayer);
-            },
-            null
+            {
+                layerFilter: function(layer) {
+                        return (layer === iconsLayer);
+                },
+                hitTolerance: 5,
+            }
         );
 
         if (hex) {
@@ -1356,7 +1411,8 @@ function refreshTableInfo() {
         if (tableplane.flight) {
                 tableplane.tr.cells[2].innerHTML = getFlightAwareModeSLink(tableplane.icao, tableplane.flight, tableplane.flight);
         } else {
-                tableplane.tr.cells[2].innerHTML = "";
+		// Show _registration if ident is not present
+		tableplane.tr.cells[2].innerHTML = (tableplane.registration !== null ? getFlightAwareIdentLink(tableplane.registration, '_' + tableplane.registration) : "");
         }
         tableplane.tr.cells[3].textContent = (tableplane.registration !== null ? tableplane.registration : "");
         tableplane.tr.cells[4].textContent = (tableplane.icaotype !== null ? tableplane.icaotype : "");
@@ -1408,7 +1464,7 @@ function compareNumeric(xf,yf) {
 }
 
 function sortByICAO()     { sortBy('icao',    compareAlpha,   function(x) { return x.icao; }); }
-function sortByFlight()   { sortBy('flight',  compareAlpha,   function(x) { return x.flight; }); }
+function sortByFlight()   { sortBy('flight',  compareAlpha,   function(x) { return x.flight ? x.flight : x.registration; }); }
 function sortByRegistration()   { sortBy('registration',    compareAlpha,   function(x) { return x.registration; }); }
 function sortByAircraftType()   { sortBy('icaotype',        compareAlpha,   function(x) { return x.icaotype; }); }
 function sortBySquawk()   { sortBy('squawk',  compareAlpha,   function(x) { return x.squawk; }); }
@@ -1726,16 +1782,42 @@ function setColumnVisibility() {
     var mapIsVisible = $("#map_container").is(":visible");
     var infoTable = $("#tableinfo");
 
-    showColumn(infoTable, "#registration", !mapIsVisible);
-    showColumn(infoTable, "#aircraft_type", !mapIsVisible);   
-    showColumn(infoTable, "#vert_rate", !mapIsVisible);
-    showColumn(infoTable, "#rssi", !mapIsVisible);
-    showColumn(infoTable, "#lat", !mapIsVisible);
-    showColumn(infoTable, "#lon", !mapIsVisible);
-    showColumn(infoTable, "#data_source", !mapIsVisible);
-    showColumn(infoTable, "#airframes_mode_s_link", !mapIsVisible);
-    showColumn(infoTable, "#flightaware_mode_s_link", !mapIsVisible);
-    showColumn(infoTable, "#flightaware_photo_link", !mapIsVisible);
+    var defaultCheckBoxes = [
+        '#icao_col_checkbox',
+        '#flag_col_checkbox',
+        '#ident_col_checkbox',
+        '#squawk_col_checkbox',
+        '#alt_col_checkbox',
+        '#speed_col_checkbox',
+        '#distance_col_checkbox',
+        '#heading_col_checkbox',
+        '#messages_col_checkbox',
+        '#msg_age_col_checkbox'
+    ]
+
+    // Show default columns if checkboxes have not been set
+    for (var i=0; i < defaultCheckBoxes.length; i++) {
+        var checkBoxdiv = defaultCheckBoxes[i];
+        var columnDiv = checkbox_div_map.get(checkBoxdiv)
+
+        if (typeof localStorage[checkBoxdiv] === 'undefined') {
+                $(checkBoxdiv).addClass('settingsCheckboxChecked');
+                localStorage.setItem(checkBoxdiv, 'selected');
+                showColumn(infoTable, columnDiv, true);
+        }
+    }
+
+    // Now check local storage checkbox status
+    checkbox_div_map.forEach(function (div, checkbox) {
+        var status = localStorage.getItem(checkbox);
+        if (status === 'selected') {
+                $(checkbox).addClass('settingsCheckboxChecked');
+                showColumn(infoTable, div, true);
+        } else {
+                $(checkbox).removeClass('settingsCheckboxChecked');
+                showColumn(infoTable, div, false);
+        }
+    });
 }
 
 function setSelectedInfoBlockVisibility() {
@@ -2021,29 +2103,29 @@ function getAirframesModeSLink(code) {
 
 // takes in an elemnt jQuery path and the OL3 layer name and toggles the visibility based on clicking it
 function toggleLayer(element, layer) {
-    // set initial checked status
-    ol.control.LayerSwitcher.forEachRecursive(layers, function(lyr) { 
-        if (lyr.get('name') === layer && lyr.getVisible()) {
-            $(element).addClass('settingsCheckboxChecked');
-        }
-    });
-    $(element).on('click', function() {
-        var visible = false;
-        if ($(element).hasClass('settingsCheckboxChecked')) {
-            visible = true;
-        }
-        ol.control.LayerSwitcher.forEachRecursive(layers, function(lyr) { 
-            if (lyr.get('name') === layer) {
-                if (visible) {
-                    lyr.setVisible(false);
-                    $(element).removeClass('settingsCheckboxChecked');
-                } else {
-                    lyr.setVisible(true);
-                    $(element).addClass('settingsCheckboxChecked');
-                }
-            }
-        });
-    });
+        // set initial checked status
+        ol.control.LayerSwitcher.forEachRecursive(layerGroup, function(lyr) {
+		if (lyr.get('name') === layer && lyr.getVisible()) {
+			$(element).addClass('settingsCheckboxChecked');
+		}
+	});
+	$(element).on('click', function() {
+		var visible = false;
+		if ($(element).hasClass('settingsCheckboxChecked')) {
+			visible = true;
+		}
+		ol.control.LayerSwitcher.forEachRecursive(layerGroup, function(lyr) {
+			if (lyr.get('name') === layer) {
+				if (visible) {
+					lyr.setVisible(false);
+					$(element).removeClass('settingsCheckboxChecked');
+				} else {
+					lyr.setVisible(true);
+					$(element).addClass('settingsCheckboxChecked');
+				}
+			}
+		});
+	});
 }
 
 // check status.json if it has a serial number for a flightfeeder
@@ -2208,4 +2290,65 @@ function onSetRangeRings() {
     setRangeRings();
 
     createSiteCircleFeatures();
+}
+
+function toggleColumn(div, checkbox, toggled) {
+	if (typeof localStorage[checkbox] === 'undefined') {
+		localStorage.setItem(checkbox, 'deselected');
+	}
+
+	var status = localStorage.getItem(checkbox);
+	var infoTable = $("#tableinfo");
+
+	if (toggled === true) {
+		status = (status === 'deselected') ? 'selected' : 'deselected';
+	}
+
+	// Toggle checkbox and column visibility
+	if (status === 'selected') {
+		$(checkbox).addClass('settingsCheckboxChecked');
+		showColumn(infoTable, div, true);
+	} else {
+		$(checkbox).removeClass('settingsCheckboxChecked');
+		showColumn(infoTable, div, false);
+		$('#select_all_column_checkbox').removeClass('settingsCheckboxChecked');
+		localStorage.setItem('selectAllColumnsCheckbox', 'deselected');
+	}
+
+	localStorage.setItem(checkbox, status);
+}
+
+function toggleAllColumns(switchToggle) {
+        if (typeof localStorage['selectAllColumnsCheckbox'] === 'undefined') {
+                ocalStorage.setItem('selectAllColumnsCheckbox','deselected');
+        }
+
+        var infoTable = $("#tableinfo");
+
+        var selectAllColumnsCheckbox = localStorage.getItem('selectAllColumnsCheckbox');
+
+        if (switchToggle === true) {
+                selectAllColumnsCheckbox = (selectAllColumnsCheckbox === 'deselected') ? 'selected' : 'deselected';
+
+                checkbox_div_map.forEach(function (div, checkbox) {
+                        if (selectAllColumnsCheckbox === 'deselected') {
+                                $('#select_all_column_checkbox').removeClass('settingsCheckboxChecked');
+                                $(checkbox).removeClass('settingsCheckboxChecked');
+                                showColumn(infoTable, div, false);
+                        } else {
+                                $('#select_all_column_checkbox').addClass('settingsCheckboxChecked');
+                                $(checkbox).addClass('settingsCheckboxChecked');
+                                showColumn(infoTable, div, true);
+                        }
+                        localStorage.setItem(checkbox, selectAllColumnsCheckbox);
+                });
+        };
+
+        if (selectAllColumnsCheckbox === 'deselected') {
+                $('#select_all_column_checkbox').removeClass('settingsCheckboxChecked');
+        } else {
+                $('#select_all_column_checkbox').addClass('settingsCheckboxChecked');
+        }
+
+        localStorage.setItem('selectAllColumnsCheckbox', selectAllColumnsCheckbox);
 }

@@ -28,10 +28,13 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 #include "dump1090.h"
+
+struct _Modes Modes;
+
 //
 // ============================= Utility functions ==========================
 //
-void sigintHandler(int dummy) {
+static void sigintHandler(int dummy) {
     MODES_NOTUSED(dummy);
     signal(SIGINT, SIG_DFL);  // reset signal handler - bit extra safety
     Modes.exit = 1;           // Signal to threads that we are done
@@ -48,7 +51,7 @@ void receiverPositionChanged(float lat, float lon, float alt)
 //
 // =============================== Initialization ===========================
 //
-void view1090InitConfig(void) {
+static void view1090InitConfig(void) {
     // Default everything to zero/NULL
     memset(&Modes,    0, sizeof(Modes));
 
@@ -61,7 +64,7 @@ void view1090InitConfig(void) {
 //
 //=========================================================================
 //
-void view1090Init(void) {
+static void view1090Init(void) {
 
     pthread_mutex_init(&Modes.data_mutex,NULL);
     pthread_cond_init(&Modes.data_cond,NULL);
@@ -105,7 +108,7 @@ void view1090Init(void) {
 //
 // ================================ Main ====================================
 //
-void showHelp(void) {
+static void showHelp(void) {
     printf(
 "-----------------------------------------------------------------------------\n"
 "| view1090 ModeS Viewer       %45s |\n"
@@ -129,7 +132,7 @@ void showHelp(void) {
     );
 }
 
-void sendSettings(struct client *c)
+static void sendSettings(struct client *c)
 {
     sendBeastSettings(c, "CdV"); // Beast binary format, no filters, verbatim mode on
     sendBeastSettings(c, Modes.mode_ac ? "J" : "j");  // Mode A/C on or off
