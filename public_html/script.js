@@ -421,7 +421,9 @@ var CurrentHistoryFetch = null;
 var PositionHistoryBuffer = [];
 var HistoryItemsReturned = 0;
 function start_load_history() {
-	if (PositionHistorySize > 0 && window.location.hash != '#nohistory') {
+	let url = new URL(window.location.href);
+	let params = new URLSearchParams(url.search);
+	if (PositionHistorySize > 0 && params.get('nohistory') !== 'true') {
 		$("#loader_progress").attr('max',PositionHistorySize);
 		console.log("Starting to load history (" + PositionHistorySize + " items)");
 		//Load history items in parallel
@@ -528,9 +530,7 @@ function applyUrlQueryStrings() {
     // be sure we start with a 'clean' layout, but only if we need it
     var allOptions = [
         'hideBanner',
-        'showBanner',
-        'hideAltitude',
-        'showAltitude',
+        'toggleAltitude',
         'showTracks',
         'hideMap',
         'hideSidebar',
@@ -557,59 +557,52 @@ function applyUrlQueryStrings() {
     if (needReset) {
         resetMap();
     }
-
-    if(params.get('hideBanner')) {
+    if (params.get('hideBanner') === 'true') {
         hideBanner();
     }
-    if(params.get('showBanner')) {
-        showBanner();
+    if (params.get('toggleAltitude') === 'true') {
+        toggleAltitudeChart(true);
     }
-    if(params.get('hideAltitude')) {
-        showAltitude(false);
-    }
-    if(params.get('showAltitude')) {
-        showAltitude(true);
-    }
-    if(params.get('showTracks')) {
+    if (params.get('showTracks') === 'true') {
         selectAllPlanes();
     }
-    if(params.get('hideMap')) {
+    if (params.get('hideMap') === 'true') {
         expandSidebar();
     }
-    if(params.get('hideSidebar')) {
+    if (params.get('hideSidebar') === 'true') {
         toggleSidebarVisibility();
     }
-    if(params.get('zoomOut')) {
+    if (params.get('zoomOut')) {
         zoomMap(params.get('zoomOut'), true);
     }
-    if(params.get('zoomIn')) {
+    if (params.get('zoomIn')) {
         zoomMap(params.get('zoomIn'), false);
     }
-    if(params.get('moveUp')) {
+    if (params.get('moveUp')) {
         moveMap(params.get('moveUp'), true, false);
     }
-    if(params.get('moveDown')) {
+    if (params.get('moveDown')) {
         moveMap(params.get('moveDown'), true, true);
     }
-    if(params.get('moveRight')) {
+    if (params.get('moveRight')) {
         moveMap(params.get('moveRight'), false, false);
     }
-    if(params.get('moveLeft')) {
+    if (params.get('moveLeft')) {
         moveMap(params.get('moveLeft'), false, true);
     }
-    if(params.get('units')) {
+    if (params.get('units')) {
         setUnits(params.get('units'));
     }
-    if(params.get('enableRings')) {
+    if (params.get('enableRings') === 'true') {
         enableRings(true);
     }
-    if(params.get('ringCount')) {
+    if (params.get('ringCount')) {
         setRingCount(params.get('ringCount'));
     }
-    if(params.get('ringBaseDistance')) {
+    if (params.get('ringBaseDistance')) {
         setRingBaseDistance(params.get('ringBaseDistance'));
     }
-    if(params.get('ringInterval')) {
+    if (params.get('ringInterval')) {
         setRingInterval(params.get('ringInterval'));
     }
 }
@@ -2160,13 +2153,6 @@ function hideBanner() {
     document.getElementById("layout_container").style.height = '100%';
 }
 
-// put the banner back (not sure how we'd use this one)
-function showBanner() {
-    let h = document.getElementById("header");
-    document.getElementById("layout_container").style.height = '100% ' - h.style.height;
-    h.style.display = 'flex'; 
-}
-
 // a helper to restrict the range of the inputs
 function restrictUrlRequest(c) {
     let v = parseFloat(c);
@@ -2214,21 +2200,13 @@ function moveMap(c, moveVertical, moveDownLeft) {
     OLMap.getView().setCenter(cn);
 }
 
-// function to hide altitude if showing
-function showAltitude(show) {
-    var altitudeChartDisplay = localStorage.getItem('altitudeChart');
-    if (((altitudeChartDisplay === 'show') && !show) || ((altitudeChartDisplay === 'hidden') && show)) {
-        toggleAltitudeChart(true);
-    }
-}
-
 // simple function to set units
-function setUnits(idx) {
-    if (idx == 1) {
+function setUnits(units) {
+    if (units === 'nautical') {
         localStorage['displayUnits'] = "nautical";
-    } else if (idx == 2) {
+    } else if (units === 'metric') {
         localStorage['displayUnits'] = "metric";
-    } else {
+    } else if (units === 'imperial') {
         localStorage['displayUnits'] = "imperial";
     }
     onDisplayUnitsChanged(); 
