@@ -2298,7 +2298,7 @@ function toggleColumn(div, checkbox, toggled) {
 
 function toggleAllColumns(switchToggle) {
         if (typeof localStorage['selectAllColumnsCheckbox'] === 'undefined') {
-                ocalStorage.setItem('selectAllColumnsCheckbox','deselected');
+                localStorage.setItem('selectAllColumnsCheckbox','deselected');
         }
 
         var infoTable = $("#tableinfo");
