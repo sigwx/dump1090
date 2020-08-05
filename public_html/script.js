@@ -2214,14 +2214,28 @@ function setUnits(units) {
 
 // simple function to turn on range rings
 function enableRings(enable) {
-    isOn = false;
+    var isOn = false;
+    var doWork = false;
     if ($('#sitepos_checkbox').hasClass('settingsCheckboxChecked')) {
         isOn = true;
     }
 
     // if we want it on but its not, or we want it off but its on, toggle it
-    if ((enable && !isOn) || (!enable && isOn)) {
-        toggleLayer('#sitepos_checkbox', 'site_pos');
+    if (enable && !isOn) {
+        $('#sitepos_checkbox').addClass('settingsCheckboxChecked')
+        doWork = true;
+    }
+    if (!enable && isOn) {
+        $('#sitepos_checkbox').removeClass('settingsCheckboxChecked')
+        doWork = true;
+    }
+    // if we needed to toggle things, change the visibility of the site_pos layer
+    if (doWork) {
+        ol.control.LayerSwitcher.forEachRecursive(layerGroup, function(lyr) {
+            if (lyr.get('name') === 'site_pos') {
+                lyr.setVisible(enable);
+            }
+        });
     }
 }
 
