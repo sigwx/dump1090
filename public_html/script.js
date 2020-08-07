@@ -529,23 +529,24 @@ function applyUrlQueryStrings() {
 
     // be sure we start with a 'clean' layout, but only if we need it
     var allOptions = [
-        'hideBanner',
-        'toggleAltitude',
-        'showTracks',
-        'hideMap',
-        'hideSidebar',
+        'banner',
+        'altitudeChart',
+        'aircraftTrails',
+        'map',
+        'sidebar',
         'zoomOut',
         'zoomIn',
-        'moveUp',
-        'moveDown',
-        'moveLeft',
-        'moveRight',
-        'units',
-        'enableRings',
+        'moveNorth',
+        'moveSouth',
+        'moveWest',
+        'moveEast',
+        'displayUnits',
+        'rangeRings',
         'ringCount',
         'ringBaseDistance',
         'ringInterval'
     ]
+
     var needReset = false;
     for (var option of allOptions) {
         if (params.has(option)) {
@@ -557,20 +558,37 @@ function applyUrlQueryStrings() {
     if (needReset) {
         resetMap();
     }
-    if (params.get('hideBanner') === 'true') {
+
+    if (params.get('banner') === 'hide') {
         hideBanner();
     }
-    if (params.get('toggleAltitude') === 'true') {
-        toggleAltitudeChart(true);
+    if (params.get('altitudeChart') === 'hide') {
+	$('#altitude_checkbox').removeClass('settingsCheckboxChecked');
+        $('#altitude_chart').hide();
     }
-    if (params.get('showTracks') === 'true') {
+    if (params.get('altitudeChart') === 'show') {
+        $('#altitude_checkbox').addClass('settingsCheckboxChecked');
+        $('#altitude_chart').show();
+    }
+    if (params.get('aircraftTrails') === 'show') {
         selectAllPlanes();
     }
-    if (params.get('hideMap') === 'true') {
+    if (params.get('aircraftTrails') === 'hide') {
+        deselectAllPlanes();
+    }
+    if (params.get('map') === 'show') {
+        showMap();
+    }
+    if (params.get('map') === 'hide') {
         expandSidebar();
     }
-    if (params.get('hideSidebar') === 'true') {
-        toggleSidebarVisibility();
+    if (params.get('sidebar') === 'show') {
+        $("#sidebar_container").show();
+        updateMapSize();
+    }
+    if (params.get('sidebar') === 'hide') {
+        $("#sidebar_container").hide();
+        updateMapSize();
     }
     if (params.get('zoomOut')) {
         zoomMap(params.get('zoomOut'), true);
@@ -578,23 +596,23 @@ function applyUrlQueryStrings() {
     if (params.get('zoomIn')) {
         zoomMap(params.get('zoomIn'), false);
     }
-    if (params.get('moveUp')) {
-        moveMap(params.get('moveUp'), true, false);
+    if (params.get('moveNorth')) {
+        moveMap(params.get('moveNorth'), true, false);
     }
-    if (params.get('moveDown')) {
-        moveMap(params.get('moveDown'), true, true);
+    if (params.get('moveSouth')) {
+        moveMap(params.get('moveSouth'), true, true);
     }
-    if (params.get('moveRight')) {
-        moveMap(params.get('moveRight'), false, false);
+    if (params.get('moveEast')) {
+        moveMap(params.get('moveEast'), false, false);
     }
-    if (params.get('moveLeft')) {
-        moveMap(params.get('moveLeft'), false, true);
+    if (params.get('moveWest')) {
+        moveMap(params.get('moveWest'), false, true);
     }
-    if (params.get('units')) {
-        setUnits(params.get('units'));
+    if (params.get('displayUnits')) {
+        setDisplayUnits(params.get('displayUnits'));
     }
-    if (params.get('enableRings') === 'true') {
-        enableRings(true);
+    if (params.get('rangeRings')) {
+        setRangeRingVisibility(params.get('rangeRings'));
     }
     if (params.get('ringCount')) {
         setRingCount(params.get('ringCount'));
@@ -2147,13 +2165,14 @@ function updatePiAwareOrFlightFeeder() {
     refreshPageTitle();
 }
 
-// for a kiosk to show maximum data possible
+// Function to hide banner (ex. for a kiosk to show maximum data possible)
 function hideBanner() {
     document.getElementById("header").style.display = 'none'; 
     document.getElementById("layout_container").style.height = '100%';
+    updateMapSize();
 }
 
-// a helper to restrict the range of the inputs
+// Helper function to restrict the range of the inputs
 function restrictUrlRequest(c) {
     let v = parseFloat(c);
     if (v < 0) {
@@ -2164,7 +2183,7 @@ function restrictUrlRequest(c) {
     return v;
 }
 
-// simple function to zoom, but not by too much per 'amount'
+// Function to zoom, but not by too much per 'amount'
 function zoomMap(c, zoomOut) {
     c = restrictUrlRequest(c);
     ZoomLvl = OLMap.getView().getZoom();
@@ -2177,7 +2196,7 @@ function zoomMap(c, zoomOut) {
     OLMap.getView().setZoom(ZoomLvl);
 }
 
-// simple function to move map at 0.005% of the extent per 'move'
+// Function to move map at 0.005% of the extent per 'move'
 function moveMap(c, moveVertical, moveDownLeft) {
     c = restrictUrlRequest(c);
     let cn = OLMap.getView().getCenter();
@@ -2200,8 +2219,8 @@ function moveMap(c, moveVertical, moveDownLeft) {
     OLMap.getView().setCenter(cn);
 }
 
-// simple function to set units
-function setUnits(units) {
+// Function to set displayUnits
+function setDisplayUnits(units) {
     if (units === 'nautical') {
         localStorage['displayUnits'] = "nautical";
     } else if (units === 'metric') {
@@ -2209,34 +2228,28 @@ function setUnits(units) {
     } else if (units === 'imperial') {
         localStorage['displayUnits'] = "imperial";
     }
-    onDisplayUnitsChanged(); 
+    onDisplayUnitsChanged();
 }
 
-// simple function to turn on range rings
-function enableRings(enable) {
-    var isOn = false;
-    var doWork = false;
-    if ($('#sitepos_checkbox').hasClass('settingsCheckboxChecked')) {
-        isOn = true;
-    }
+// Function to set range ring visibility
+function setRangeRingVisibility (showhide) {
+   var show = null;
 
-    // if we want it on but its not, or we want it off but its on, toggle it
-    if (enable && !isOn) {
-        $('#sitepos_checkbox').addClass('settingsCheckboxChecked')
-        doWork = true;
-    }
-    if (!enable && isOn) {
+   if (showhide === 'hide') {
         $('#sitepos_checkbox').removeClass('settingsCheckboxChecked')
-        doWork = true;
-    }
-    // if we needed to toggle things, change the visibility of the site_pos layer
-    if (doWork) {
-        ol.control.LayerSwitcher.forEachRecursive(layerGroup, function(lyr) {
-            if (lyr.get('name') === 'site_pos') {
-                lyr.setVisible(enable);
-            }
-        });
-    }
+        show = false;
+   } else if (showhide === 'show') {
+        $('#sitepos_checkbox').addClass('settingsCheckboxChecked')
+        show = true;
+   } else {
+        return
+   }
+
+   ol.control.LayerSwitcher.forEachRecursive(layerGroup, function(lyr) {
+        if (lyr.get('name') === 'site_pos') {
+        lyr.setVisible(show);
+        }
+    });
 }
 
 // simple function to set range ring count
