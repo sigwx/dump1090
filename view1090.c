@@ -28,10 +28,13 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 #include "dump1090.h"
+
+struct _Modes Modes;
+
 //
 // ============================= Utility functions ==========================
 //
-void sigintHandler(int dummy) {
+static void sigintHandler(int dummy) {
     MODES_NOTUSED(dummy);
     signal(SIGINT, SIG_DFL);  // reset signal handler - bit extra safety
     Modes.exit = 1;           // Signal to threads that we are done
@@ -48,12 +51,13 @@ void receiverPositionChanged(float lat, float lon, float alt)
 //
 // =============================== Initialization ===========================
 //
-void view1090InitConfig(void) {
+static void view1090InitConfig(void) {
     // Default everything to zero/NULL
     memset(&Modes,    0, sizeof(Modes));
 
     // Now initialise things that should not be 0/NULL to their defaults
     Modes.check_crc               = 1;
+    Modes.fix_df                  = 1;
     Modes.interactive_display_ttl = MODES_INTERACTIVE_DISPLAY_TTL;
     Modes.interactive             = 1;
     Modes.maxRange                = 1852 * 300; // 300NM default max range
@@ -61,10 +65,7 @@ void view1090InitConfig(void) {
 //
 //=========================================================================
 //
-void view1090Init(void) {
-
-    pthread_mutex_init(&Modes.data_mutex,NULL);
-    pthread_cond_init(&Modes.data_cond,NULL);
+static void view1090Init(void) {
 
 #ifdef _WIN32
     if ( (!Modes.wsaData.wVersion)
@@ -105,13 +106,17 @@ void view1090Init(void) {
 //
 // ================================ Main ====================================
 //
-void showHelp(void) {
+static void showHelp(void) {
     printf(
-"-----------------------------------------------------------------------------\n"
+"-------------------------------------------------------------------------------------\n"
 "| view1090 ModeS Viewer       %45s |\n"
-"-----------------------------------------------------------------------------\n"
+"-------------------------------------------------------------------------------------\n"
   "--no-interactive         Disable interactive mode, print messages to stdout\n"
   "--interactive-ttl <sec>  Remove from list if idle for <sec> (default: 60)\n"
+  "--interactive-show-distance   Show aircraft distance and bearing instead of lat/lon\n"
+  "                              (requires --lat and --lon)\n"
+  "--interactive-distance-units  Distance units ('km', 'sm', 'nm') (default: 'nm')\n"
+  "--interactive-callsign-filter Only callsigns that match the prefix or regex will be displayed\n"
   "--modeac                 Enable decoding of SSR modes 3/A & 3/C\n"
   "--net-bo-ipaddr <IPv4>   TCP Beast output listen IPv4 (default: 127.0.0.1)\n"
   "--net-bo-port <port>     TCP Beast output listen port (default: 30005)\n"
@@ -129,7 +134,7 @@ void showHelp(void) {
     );
 }
 
-void sendSettings(struct client *c)
+static void sendSettings(struct client *c)
 {
     sendBeastSettings(c, "CdV"); // Beast binary format, no filters, verbatim mode on
     sendBeastSettings(c, Modes.mode_ac ? "J" : "j");  // Mode A/C on or off
@@ -168,7 +173,21 @@ int main(int argc, char **argv) {
             Modes.interactive = 0;
         } else if (!strcmp(argv[j],"--interactive-ttl") && more) {
             Modes.interactive_display_ttl = (uint64_t)(1000 * atof(argv[++j]));
-        } else if (!strcmp(argv[j],"--lat") && more) {
+            Modes.interactive_display_size = strlen(argv[j]);
+        } else if (!strcmp(argv[j], "--interactive-show-distance")) {
+            Modes.interactive_show_distance = 1;
+        } else if (!strcmp(argv[j], "--interactive-distance-units") && more) {
+            char *units = argv[++j];
+            if (!strcmp(units, "km")) {
+                Modes.interactive_distance_units = UNIT_KILOMETERS;
+            } else if (!strcmp(units, "sm")) {
+                Modes.interactive_distance_units = UNIT_STATUTE_MILES;
+            } else {
+                Modes.interactive_distance_units = UNIT_NAUTICAL_MILES;
+            }
+        } else if (!strcmp(argv[j], "--interactive-callsign-filter") && more) {
+            Modes.interactive_callsign_filter = strdup(argv[++j]);
+        } else if (!strcmp(argv[j], "--lat") && more) {
             Modes.fUserLat = atof(argv[++j]);
         } else if (!strcmp(argv[j],"--lon") && more) {
             Modes.fUserLon = atof(argv[++j]);
