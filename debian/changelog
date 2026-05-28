@@ -1,3 +1,9 @@
+dump1090-fa (11.1~alpha) UNRELEASED; urgency=medium
+
+  * In development 
+
+ -- Eric Tran <eric.tran@flightaware.com>  Thu, 28 May 2026 17:16:34 +0000
+
 dump1090-fa (11.0) stable; urgency=medium
 
   * Add build support for trixie, remove buster support
